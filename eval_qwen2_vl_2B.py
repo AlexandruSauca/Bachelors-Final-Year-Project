@@ -10,7 +10,7 @@ import enum
 
 load_dotenv()
 
-client = genai.Client(api_key="AIzaSyB5F3YWV_wyvuQFhZ3b-jnbzzql02T_ZW0")
+client = genai.Client(api_key="gemini-api-key")
 
 prompt_images = """Describe the content of the image in detail.
 For context,the image is part of a research paper explaining the transformers
