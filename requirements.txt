@@ -1,0 +1,13 @@
+"unstructured[pdf]"
+pytesseract
+transformers
+pillow
+torch
+ollama
+langchain
+bitsandbytes
+google
+evaluate
+qwen_vl_utils
+logging
+google-generativeai
