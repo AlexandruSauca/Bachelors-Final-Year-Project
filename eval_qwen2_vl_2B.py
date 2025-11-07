@@ -1,7 +1,7 @@
 from unstructured.partition.pdf import partition_pdf
 import base64
 from IPython.display import Image, display, Markdown
-from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2VLForConditionalGeneration
+from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2VLForConditionalGeneration, BertTokenizer, BertModel
 import torch
 from qwen_vl_utils import process_vision_info
 from google import genai
@@ -10,11 +10,14 @@ import enum
 from tqdm import tqdm
 import json
 import os
+import time
 import re
 from PIL import Image
 from evaluate import load
+from bert_score import BERTScorer
 import logging
 from google.generativeai import types
+from google.api_core import exceptions
 from load_qwen2vl2B import model, processor
 from prompts import prompt_eval, prompt_images, prompt_text, SUMMARY_PROMPT, prompt_get_num, COMPARISON_PROMPT
 from chunking import proccess_text, get_text,chunk_pdf
@@ -28,6 +31,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+rouge = load('rouge')
+scorer = BERTScorer(model_type= "bert-base-uncased")
 
 client = genai.Client(api_key="your_gemini_api_key")
 
@@ -55,12 +61,35 @@ class SummaryRating(enum.Enum):
 def evaluate_summary(prompt, ai_response):
     """Evaluate the generated summary against the prompt used."""
     chat = client.chats.create(model='gemini-2.0-flash')
-    response = chat.send_message(
-      message=SUMMARY_PROMPT.format(prompt=prompt, response=ai_response)
-    )
-    verbose_eval = response.text
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = chat.send_message(
+                message=SUMMARY_PROMPT.format(
+                    prompt=prompt, 
+                    response=ai_response
+                )
+            )
+            verbose_eval = response.text
+            return verbose_eval  # Success, exit the function
 
-    return verbose_eval
+        except (exceptions.ServiceUnavailable, exceptions.DeadlineExceeded) as e:
+            # This catches 503 UNAVAILABLE and Timeouts
+            print(f"  > Gemini Error (Attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt + 1 == max_retries:
+                print("  > Max retries reached. Failing this item.")
+                return f"EVALUATION FAILED: {e}"
+            
+            wait_time = 2 ** attempt  # Exponential backoff (1s, 2s, 4s)
+            print(f"  > Retrying in {wait_time} second(s)...")
+            time.sleep(wait_time)
+        
+        except Exception as e:
+            print(f"  > Gemini evaluation failed with a non-retryable error: {e}")
+            return f"EVALUATION FAILED: {e}"
+
+    return "EVALUATION FAILED: Max retries reached"
 
 def summarize_text_gemini(prompt):
     chat = client.chats.create(model='gemini-2.5-pro')
@@ -167,6 +196,12 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
                     comp_summ = compare_summ(reference_summ=ref_summary_flatten, pred_summ=pred_summary)
                     eval_summ = get_num_eval(prompt=prompt_get_num, gemini_response=comp_summ)
 
+                    print(f" >Parsing the rougeLsum score for {entry['id']}...")
+                    rouge_scores = rouge.compute(predictions=[pred_summary], references=[ref_summary_flatten])
+
+                    # print(f" >Parsing BertScore metrics for {entry['id']}...")
+                    # P, R, F1 = scorer.score([pred_summary], [ref_summary_flatten])
+
                     results.append({
                         "id": entry['id'],
                         "reference": ref_summary,
@@ -174,6 +209,7 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
                         "prediction": pred_summary,
                         "gemini_eval_quality" : eval_num,
                         "gemini_eval_comparison": eval_summ,
+                        "rougeLsum_score": rouge_scores.get('rougeLsum', 0.0),
                     })
                 except Exception as e:
                     print(f"Error during generation for {entry['id']}: {e}")
@@ -186,23 +222,64 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
     return results
 
 def get_num_eval(prompt, gemini_response):
-    response = client.models.generate_content(
-      model='gemini-2.0-flash',
-      contents=[prompt, gemini_response],
-    )
-    return response.text
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=[prompt, gemini_response],
+            )
+    
+            return response.text  # Success, exit the function
+
+        except (exceptions.ServiceUnavailable, exceptions.DeadlineExceeded) as e:
+            # This catches 503 UNAVAILABLE and Timeouts
+            print(f"  > Gemini Error (Attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt + 1 == max_retries:
+                print("  > Max retries reached. Failing this item.")
+                return f"EVALUATION FAILED: {e}"
+            
+            wait_time = 2 ** attempt  # Exponential backoff (1s, 2s, 4s)
+            print(f"  > Retrying in {wait_time} second(s)...")
+            time.sleep(wait_time)
+        
+        except Exception as e:
+            print(f"  > Gemini evaluation failed with a non-retryable error: {e}")
+            return f"EVALUATION FAILED: {e}"
+
+    return "EVALUATION FAILED: Max retries reached"
     
 def compare_summ(reference_summ, pred_summ):
     chat = client.chats.create(model='gemini-2.0-flash')
-    response = chat.send_message(
-      message=COMPARISON_PROMPT.format(
-        reference = reference_summ,
-        prediction = pred_summ
-      )
-    )
-    verbose_eval = response.text
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = chat.send_message(
+                message=COMPARISON_PROMPT.format(
+                    reference = reference_summ,
+                    prediction = pred_summ
+                )
+            )
+            verbose_eval = response.text
+            return verbose_eval  # Success, exit the function
 
-    return verbose_eval
+        except (exceptions.ServiceUnavailable, exceptions.DeadlineExceeded) as e:
+            # This catches 503 UNAVAILABLE and Timeouts
+            print(f"  > Gemini Error (Attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt + 1 == max_retries:
+                print("  > Max retries reached. Failing this item.")
+                return f"EVALUATION FAILED: {e}"
+            
+            wait_time = 2 ** attempt  # Exponential backoff (1s, 2s, 4s)
+            print(f"  > Retrying in {wait_time} second(s)...")
+            time.sleep(wait_time)
+        
+        except Exception as e:
+            print(f"  > Gemini evaluation failed with a non-retryable error: {e}")
+            return f"EVALUATION FAILED: {e}"
+
+    return "EVALUATION FAILED: Max retries reached"
             
 def main():
 
@@ -221,15 +298,36 @@ def main():
     num_eval = get_num_eval(prompt=prompt_get_num, gemini_response=text_eval)
     #print(num_eval)
     
-    #results = evaluate_mmlb(files, output_qwen2, data_root, model, processor, prompt_eval)
+    results = evaluate_mmlb(files, output_qwen2, data_root, model, processor, prompt_eval)
 
     all_scores = []
     scores_this_file = []
+
+    all_rouge = []
+    rouge_this_file = []
+    
+    # all_p_bert = []
+    # all_r_bert = []
+    # all_f1_bert = []
+    
+    # p_this_file = []
+    # r_this_file = []
+    # f1_this_file = []
+
     with open(file_json, 'r', encoding='utf-8') as f:
             data = json.load(f) 
 
             for entry in tqdm(data, desc=f"Reading {os.path.basename(file_json)}"):
                 eval_comp = entry.get('gemini_eval_comparison', '') 
+                eval_rouge = entry.get('rougeLsum_score', '')
+                # eval_p = entry.get('BertScore_P', '')
+                # eval_r = entry.get('BertScore_R', '')
+                # eval_f1 = entry.get('BertScore_F1', '')
+
+                rouge_this_file.append(eval_rouge)
+                # p_this_file.append(eval_p)
+                # r_this_file.append(eval_r)
+                # f1_this_file.append(eval_f1)
                 
                 match = re.search(r'[1-5]', eval_comp)
                 
@@ -242,14 +340,72 @@ def main():
                 all_scores.extend(scores_this_file) 
             else:
                 print("  > No valid scores found in this file.")
-                
+            
+            if rouge_this_file:
+                average_rouge = sum(rouge_this_file) / len(rouge_this_file)
+                print(f" > Average rougeLsum score for this file: {average_rouge:.2f}")
+                all_rouge.extend(rouge_this_file)
+            else:
+                print(" > No valid rouge score found in this file.")
+
+            # if p_this_file:
+            #     average_bertscore_p = sum(p_this_file) / len(p_this_file)
+            #     print(f" > Average Precision for Bertscore for this file: {average_bertscore_p:.2f}")
+            #     all_p_bert.extend(p_this_file)
+            # else:
+            #     print(" > No valid Precison for Bertscore found in this file.")
+
+            # if r_this_file:
+            #     average_bertscore_r = sum(r_this_file) / len(r_this_file)
+            #     print(f" > Average Recall for Bertscore for this file: {average_bertscore_r:.2f}")
+            #     all_r_bert.extend(r_this_file)
+            # else:
+            #     print(" > No valid Recall for Bertscore found in this file.")
+
+            # if f1_this_file:
+            #     average_bertscore_f1 = sum(f1_this_file) / len(f1_this_file)
+            #     print(f" > Average F1 score for Bertscore for this file: {average_bertscore_f1:.2f}")
+            #     all_f1_bert.extend(f1_this_file)
+            # else:
+            #     print(" > No valid F1 score for Bertscore found in this file.")
     
     if all_scores:
         final_average = sum(all_scores) / len(all_scores)
         print("\n---")
-        print(f"Final Overall Average Score: {final_average:.2f} / 5.0")   # 1.71 / 5.0
+        print(f"Final Overall Average Score: {final_average:.2f} / 5.0")   # 3.40 / 5.0  really depends on how much the api enters timeout
     else:
         print("\nNo valid scores were found across any files.")
+
+    if all_rouge:
+        final_rouge_score = sum(all_rouge) / len(all_rouge)
+        final_rouge_100 = final_rouge_score*100
+        print("\n---")
+        print(f" > Final Average RougeLSum Score: {final_rouge_100:.2f}") # 16.84 similar to publication
+    else:
+        print(" > No valid rouge score were found in any files.")
+
+    # if all_p_bert:
+    #     final_precision_score = sum(all_p_bert) / len(all_p_bert)
+    #     final_p_100 = final_precision_score*100
+    #     print("\n---")
+    #     print(f" > Final Average Precion for  BertScore: {final_p_100:.2f}") 
+    #     print(" > No valid Precision for Bertscore were found in any files.")
+
+    # if all_r_bert:
+    #     final_recall_score = sum(all_r_bert) / len(all_r_bert)
+    #     final_R_100 = final_recall_score*100
+    #     print("\n---")
+    #     print(f" > Final Average Recall for  BertScore: {final_R_100:.2f}") 
+    # else:
+    #     print(" > No valid Recall for Bertscore were found in any files.")
+
+    # if all_f1_bert:
+    #     final_f1_score = sum(all_f1_bert) / len(all_f1_bert)
+    #     final_f1_100 = final_f1_score*100
+    #     print("\n---")
+    #     print(f" > Final Average F1 score for  BertScore: {final_f1_100:.2f}") 
+    # else:
+    #     print(" > No valid F1 score for Bertscore were found in any files.")
 
 if __name__ == "__main__":
     main()
