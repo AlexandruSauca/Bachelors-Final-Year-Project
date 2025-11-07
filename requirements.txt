@@ -11,3 +11,5 @@ evaluate
 qwen_vl_utils
 logging
 google-generativeai
+bert-score
+rouge_score
