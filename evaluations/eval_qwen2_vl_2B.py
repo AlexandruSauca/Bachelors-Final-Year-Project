@@ -13,6 +13,8 @@ import os
 import time
 import re
 from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
 from evaluate import load
 from bert_score import BERTScorer
 import bert_score
@@ -50,6 +52,7 @@ files = [
 results_path = "./results/"
 data_root = "./4_summ_image/mmlb_image/"
 output_qwen2 = "./results/qwen2_vl_mmlb_results.jsonl"
+output_all_results_qwen = "./results/all_results.jsonl"
 
 
 class SummaryRating(enum.Enum):
@@ -107,39 +110,39 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
     for file in files:
         with open(file, 'r', encoding='utf-8') as f:
             for i,line in enumerate(tqdm(f, desc=f"Processing {os.path.basename(file)}")):
-                if i >= 10: # Only process 10 items
-                    print("Stopping after 10 items for testing.")
-                    break
+                # if i >= 10: # Only process 10 items
+                #     print("Stopping after 10 items for testing.")
+                #     break
                 entry = json.loads(line)
                 image_paths = entry['image_list']
                 ref_summary = entry['summary']
                 summary_data = entry['summary']
                 ref_summary_flatten = "" 
 
+
                 if isinstance(summary_data, list) and summary_data:
-                # Check the type of the first item in the list
+                # --- Case 1: List of Dictionaries ---
                     if isinstance(summary_data[0], dict):
-                    # --- Case 1: List of Dictionaries ---
                         ref_summary_parts = []
                         for sec in summary_data:
-                            title = sec.get("section_title", "")
-                            paragraphs = " ".join(sec.get("paragraphs", []))
-                        if title:
-                            ref_summary_parts.append(f"{title}\n{paragraphs}")
-                        else:
-                            ref_summary_parts.append(paragraphs)
+                            title = sec.get("section_title", "").strip()
+                            paragraphs = " ".join(sec.get("paragraphs", [])).strip()
+                            if title:
+                                ref_summary_parts.append(f"{title}\n{paragraphs}")
+                            else:
+                                ref_summary_parts.append(paragraphs)
                         ref_summary_flatten = "\n\n".join(ref_summary_parts).strip()
-        
-                    elif isinstance(summary_data[0], str):
+
                     # --- Case 2: List of Strings ---
+                    elif isinstance(summary_data[0], str):
                         ref_summary_flatten = "\n\n".join(summary_data).strip()
-        
+
+                    # --- Case 3: Single String ---
                 elif isinstance(summary_data, str):
-                # --- Case 3: It's just a single string ---
                     ref_summary_flatten = summary_data.strip()
 
+                    # --- Fallback for other formats ---
                 else:
-                # --- Fallback for other formats ---
                     ref_summary_flatten = str(summary_data)
 
                 images = []
@@ -191,24 +194,14 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
                     
                     chat = client.chats.create(model='gemini-2.5-flash-lite')
 
-                    # print(f"  > Evaluating summary for {entry['id']}...")
-                    # eval_text = evaluate_summary(prompt=prompt_text, ai_response=pred_summary, chat=chat)
-                    # eval_num = get_num_eval(prompt=prompt_get_num, gemini_response=eval_text)
+                    print(f"  > Evaluating summary for {entry['id']}...")
+                    eval_text = evaluate_summary(prompt=prompt_text, ai_response=pred_summary, chat=chat)
+                    eval_num = get_num_eval(prompt=prompt_get_num, gemini_response=eval_text)
 
-                    # print(f" > Comparing the 2 summaries for {entry['id']}...")
-                    # comp_summ = compare_summ(reference_summ=ref_summary_flatten, pred_summ=pred_summary, chat=chat)
-                    # eval_summ = get_num_eval(prompt=prompt_get_num, gemini_response=comp_summ)
+                    print(f" > Comparing the 2 summaries for {entry['id']}...")
+                    comp_summ = compare_summ(reference_summ=ref_summary_flatten, pred_summ=pred_summary, chat=chat)
+                    eval_summ = get_num_eval(prompt=prompt_get_num, gemini_response=comp_summ)
 
-                    print(f" > Gemini evaluation for {entry['id']}...")
-                    eval_num, eval_summ = get_all_eval(
-                        reference_summ= ref_summary_flatten,
-                        pred_summ= pred_summary,
-                        prompt = prompt_text,
-                        prompt1= prompt_get_num,
-                        ai_response = pred_summary,
-                        chat = chat,
-                        max_retries= 3
-                    )
 
                     print(f" >Parsing the rougeLsum score for {entry['id']}...")
                     rouge_scores = rouge.compute(predictions=[pred_summary], references=[ref_summary_flatten])
@@ -301,60 +294,11 @@ def compare_summ(reference_summ, pred_summ, chat):
 
     return "EVALUATION FAILED: Max retries reached"
 
-def get_all_eval(reference_summ, pred_summ, prompt, prompt1, ai_response, chat, max_retries):
-    for attempt in range(max_retries):
-        try:
-            response1 = chat.send_message(
-                message=SUMMARY_PROMPT.format(
-                    prompt=prompt, 
-                    response=ai_response
-                )
-            )
-            verbose_eval = response1.text
-
-            response2 = client.models.generate_content(
-                model='gemini-2.5-flash-lite',
-                contents=[prompt1, verbose_eval],
-            )
-            verbose_eval_num = response2.text
-            
-            response3 = chat.send_message(
-                message=COMPARISON_PROMPT.format(
-                    reference = reference_summ,
-                    prediction = pred_summ
-                )
-            )
-            verbose_comp_eval = response3.text
-
-            response4 = client.models.generate_content(
-                model='gemini-2.5-flash-lite',
-                contents=[prompt1, verbose_comp_eval],
-            )
-            verbose_comp_eval_num = response4.text
-
-            return verbose_eval_num, verbose_comp_eval_num  # Success, exit the function
-
-        except (exceptions.ServiceUnavailable, exceptions.DeadlineExceeded) as e:
-            # This catches 503 UNAVAILABLE and Timeouts
-            print(f"  > Gemini Error (Attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt + 1 == max_retries:
-                print("  > Max retries reached. Failing this item.")
-                return f"EVALUATION FAILED"
-            
-            wait_time = 2 ** attempt  # Exponential backoff (1s, 2s, 4s)
-            print(f"  > Retrying in {wait_time} second(s)...")
-            time.sleep(wait_time)
-        
-        except Exception as e:
-            print(f"  > Gemini evaluation failed with a non-retryable error: {e}")
-            return f"EVALUATION FAILED"
-
-    return "EVALUATION FAILED: Max retries reached"
 
 def main():
 
-    chunks = chunk_pdf(file)
-    texts = get_text(chunks)[1] 
+    # chunks = chunk_pdf(file)
+    # texts = get_text(chunks)[1] 
     #model_response = proccess_text(text_chunk=texts, processor=processor, model=model, prompt=prompt_text, max_tokens=512)
     #print("Qwen2-VL Summary:")
     #print(model_response)
@@ -477,6 +421,45 @@ def main():
         print(f" > Final Average F1 score for  BertScore: {final_f1_100:.2f}")  # 51.71
     else:
         print(" > No valid F1 score for Bertscore were found in any files.")
+
+        f_a = round(final_average,2)
+    f_rouge = round(final_rouge_100,2)
+    f_p = round(final_p_100,2)
+    f_r = round(final_R_100,2)
+    f_f1 = round(final_f1_100,2)
+
+    all_results = []
+    all_results.append({
+        "id" : "Qwen2_VL_2B_Instruct",
+        "Gemini_evaluation" : f_a,
+        "RougeLsum" : f_rouge,
+        "Precision_BertScore" : f_p,
+        "Recall_BertScore" : f_r,
+        "F1Score_BertScore" : f_f1,
+    })
+
+    with open(output_all_results_qwen, 'w', encoding='utf-8') as f:
+        json.dump(all_results, f, indent=2, ensure_ascii=False)
+    print(f" Saved {len(all_results)} results to {output_all_results_qwen}")
+
+    x = np.array(["gemini_evaluation", "rougeLsum", "precision_bertscore", "recall_bertscore", "f1_score_bertscore"])
+    y = np.array([f_a, f_rouge, f_p, f_r, f_f1])
+    
+
+    plt.figure(figsize=(10, 6)) # Make the figure a bit wider
+    bars = plt.bar(x, y, color=['#4285F4', '#DB4437', '#F4B400', '#F4B400', '#0F9D58'])
+
+    plt.title(f"Evaluation Results for Qwen2_2B (Scores 0-100)")
+    plt.ylabel("Score")
+    plt.ylim(0, 100) # Set Y-axis to go from 0 to 100
+
+    plt.bar_label(bars, fmt='%.2f')
+
+    plt.xticks(rotation=15)
+
+    plt.tight_layout() 
+    plt.savefig("Qwen2_VL_2B_Instruct_results.png")
+    plt.show()
 
 if __name__ == "__main__":
     main()

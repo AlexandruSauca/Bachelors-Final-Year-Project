@@ -1,0 +1,10 @@
+[
+  {
+    "id": "Qwen2_VL_2B_Instruct",
+    "Gemini_evaluation": 1.98,
+    "RougeLsum": 15.06,
+    "Precision_BertScore": 59.97,
+    "Recall_BertScore": 51.28,
+    "F1Score_BertScore": 55.02
+  }
+]
