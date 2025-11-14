@@ -6,5 +6,13 @@
     "Precision_BertScore": 59.97,
     "Recall_BertScore": 51.28,
     "F1Score_BertScore": 55.02
+  },
+  {
+    "id": "Gemma3_4B",
+    "Gemini_evaluation": 1.88,
+    "RougeLsum": 15.46,
+    "Precision_BertScore": 58.93,
+    "Recall_BertScore": 53.52,
+    "F1Score_BertScore": 55.87
   }
 ]
