@@ -14,5 +14,13 @@
     "Precision_BertScore": 58.93,
     "Recall_BertScore": 53.52,
     "F1Score_BertScore": 55.87
+  },
+  {
+    "id": "Qwen2.5_VL_3B",
+    "Gemini_evaluation": 2.02,
+    "RougeLsum": 16.77,
+    "Precision_BertScore": 59.27,
+    "Recall_BertScore": 54.58,
+    "F1Score_BertScore": 56.62
   }
 ]
