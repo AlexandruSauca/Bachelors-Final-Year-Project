@@ -441,7 +441,7 @@ def main():
             all_results = []
 
     all_results.append({
-    "id" : "Gemma3_4B",
+    "id" : "Qwen3_2B_Thinking",
     "Gemini_evaluation" : f_a,
     "RougeLsum" : f_rouge,
     "Precision_BertScore" : f_p,
