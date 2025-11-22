@@ -30,5 +30,13 @@
     "Precision_BertScore": 51.64,
     "Recall_BertScore": 54.59,
     "F1Score_BertScore": 52.9
+  },
+  {
+    "id": "Gemini-2.5-Flash-Lite",
+    "Gemini_evaluation": 1.66,
+    "RougeLsum": 13.79,
+    "Precision_BertScore": 57.28,
+    "Recall_BertScore": 47.38,
+    "F1Score_BertScore": 51.53
   }
 ]
