@@ -37,7 +37,7 @@ model = "gemini-2.5-flash-lite"
 
 file = "./Examples/1706.03762v7.pdf"
 
-file_json = "./results/smolVLM_2B_results.jsonl"
+file_json = "./results/gemini-2.5-flash-lite.jsonl"
 
 files = [
         "./mmlb_data/summ/gov_K4.jsonl", "./mmlb_data/summ/gov_K8.jsonl",
@@ -143,7 +143,7 @@ def evaluate_mmlb(files, results_path, data_root,model, prompt):
                     
                     response = client.models.generate_content(
                         model=model,
-                        contents=[prompt_eval, image_path]
+                        contents=[images, prompt_eval]
                     )
 
                     pred_summary = response.text

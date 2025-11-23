@@ -33,10 +33,10 @@
   },
   {
     "id": "Gemini-2.5-Flash-Lite",
-    "Gemini_evaluation": 1.66,
-    "RougeLsum": 13.79,
-    "Precision_BertScore": 57.28,
-    "Recall_BertScore": 47.38,
-    "F1Score_BertScore": 51.53
+    "Gemini_evaluation": 2.47,
+    "RougeLsum": 14.78,
+    "Precision_BertScore": 61.69,
+    "Recall_BertScore": 53.28,
+    "F1Score_BertScore": 56.96
   }
 ]
