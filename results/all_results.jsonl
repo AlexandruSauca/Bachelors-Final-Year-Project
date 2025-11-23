@@ -38,5 +38,13 @@
     "Precision_BertScore": 61.69,
     "Recall_BertScore": 53.28,
     "F1Score_BertScore": 56.96
+  },
+  {
+    "id": "SmolVLM_2B",
+    "Gemini_evaluation": 1.78,
+    "RougeLsum": 13.11,
+    "Precision_BertScore": 59.04,
+    "Recall_BertScore": 47.97,
+    "F1Score_BertScore": 52.65
   }
 ]

@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 rouge = load('rouge')
-#scorer = BERTScorer(model_type= "bert-base-uncased")
 
 client = genai.Client(api_key="your_api_key")
 
@@ -53,6 +52,7 @@ files = [
 results_path = "./results/"
 data_root = "./4_summ_image/mmlb_image/"
 output_qwen2 = "./results/smolVLM_2B_results.jsonl"
+output_all_results_qwen = "./results/all_results.jsonl"
 
 
 class SummaryRating(enum.Enum):
@@ -111,40 +111,15 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
     for file in files:
         with open(file, 'r', encoding='utf-8') as f:
             for i,line in enumerate(tqdm(f, desc=f"Processing {os.path.basename(file)}")):
-                if i >= 10: # Only process 10 items
-                    print("Stopping after 10 items for testing.")
-                    break
+                # if i >= 10: # Only process 10 items
+                #     print("Stopping after 10 items for testing.")
+                #     break
                 entry = json.loads(line)
                 image_paths = entry['image_list']
                 ref_summary = entry['summary']
                 summary_data = entry['summary']
                 ref_summary_flatten = "" 
 
-                # if isinstance(summary_data, list) and summary_data:
-                # # Check the type of the first item in the list
-                #     if isinstance(summary_data[0], dict):
-                #     # --- Case 1: List of Dictionaries ---
-                #         ref_summary_parts = []
-                #         for sec in summary_data:
-                #             title = sec.get("section_title", "")
-                #             paragraphs = " ".join(sec.get("paragraphs", []))
-                #         if title:
-                #             ref_summary_parts.append(f"{title}\n{paragraphs}")
-                #         else:
-                #             ref_summary_parts.append(paragraphs)
-                #         ref_summary_flatten = "\n\n".join(ref_summary_parts).strip()
-        
-                #     elif isinstance(summary_data[0], str):
-                #     # --- Case 2: List of Strings ---
-                #         ref_summary_flatten = "\n\n".join(summary_data).strip()
-        
-                # elif isinstance(summary_data, str):
-                # # --- Case 3: It's just a single string ---
-                #     ref_summary_flatten = summary_data.strip()
-
-                # else:
-                # # --- Fallback for other formats ---
-                #     ref_summary_flatten = str(summary_data)
 
                 if isinstance(summary_data, list) and summary_data:
                 # --- Case 1: List of Dictionaries ---
@@ -185,26 +160,23 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
                     continue
 
                 messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "image": image_path},
-                            {"type": "text", "text": prompt_eval},
-                            ],
+                            {
+                            "role": "user",
+                            "content": (
+                                [{"type": "image", "image": img} for img in images] + 
+                                [{"type": "text", "text": prompt_eval}]
+                            )
                         }
-                    ]
+                ]
 
                 text_prompt = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-                image_inputs, video_inputs = process_vision_info(messages)
 
                 try:
                     # --- Prepare inputs ---
                     inputs = processor(
-                        text=[text_prompt],
-                        images=image_inputs,
-                        videos=video_inputs,
-                        padding=True,
+                        text=text_prompt,
+                        images = images,
                         return_tensors="pt"
                     ).to("cuda")
 
@@ -235,8 +207,8 @@ def evaluate_mmlb(files, results_path, data_root,model, processor, prompt):
                     print(f" >Parsing BertScore metrics for {entry['id']}...")
                     P, R, F1 = bert_score.score([pred_summary], [ref_summary_flatten], model_type='bert-base-uncased')
 
-                    print("  > Pausing 17s for API rate limit...")
-                    time.sleep(17)
+                    # print("  > Pausing 17s for API rate limit...")
+                    # time.sleep(17)
 
                     results.append({
                         "id": entry['id'],
@@ -453,6 +425,33 @@ def main():
     f_p = round(final_p_100,2)
     f_r = round(final_R_100,2)
     f_f1 = round(final_f1_100,2)
+
+    all_results = []
+    if os.path.exists(output_all_results_qwen):
+        try:
+            with open(output_all_results_qwen, 'r', encoding='utf-8') as f:
+                all_results = json.load(f)
+            # Make sure it's a list before appending
+                if not isinstance(all_results, list):
+                    all_results = []
+        except json.JSONDecodeError:
+            all_results = []
+
+    all_results.append({
+    "id" : "SmolVLM_2B",
+    "Gemini_evaluation" : f_a,
+    "RougeLsum" : f_rouge,
+    "Precision_BertScore" : f_p,
+    "Recall_BertScore" : f_r,
+    "F1Score_BertScore" : f_f1,
+    })
+
+    with open(output_all_results_qwen, 'w', encoding='utf-8') as f:
+        json.dump(all_results, f, indent=2, ensure_ascii=False)
+
+    print(f" Saved {len(all_results)} results to {output_all_results_qwen}")
+
+
     x = np.array(["gemini_evaluation", "rougeLsum", "precision_bertscore", "recall_bertscore", "f1_score_bertscore"])
     y = np.array([f_a, f_rouge, f_p, f_r, f_f1])
     
@@ -469,6 +468,7 @@ def main():
     plt.xticks(rotation=15)
 
     plt.tight_layout() 
+    plt.savefig("SmolVLM_results.png")
     plt.show()
 
 if __name__ == "__main__":
