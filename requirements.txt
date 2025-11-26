@@ -13,3 +13,4 @@ logging
 google-generativeai
 bert-score
 rouge_score
+arxiv
