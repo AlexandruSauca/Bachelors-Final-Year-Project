@@ -23,18 +23,32 @@ for res in data:
     bert_r.append(res["Recall_BertScore"])
     bert_f1.append(res["F1Score_BertScore"])
 
-plt.figure(figsize=(12, 6))
+fig, ax = plt.subplots(1,2,figsize=(12, 6))
+fig.suptitle('Model Performance Comparison')
 sns.heatmap(
-    data=[gemini_eval, rougeLsum, bert_p, bert_r, bert_f1],
+    data=[rougeLsum, bert_p, bert_r, bert_f1],
     annot=True,
     fmt=".2f", 
-    yticklabels=['Gemini Eval', 'RougeLsum', 'BertScore Precision', 'BertScore Recall', 'BertScore F1'],
+    yticklabels=['RougeLsum', 'BertScore Precision', 'BertScore Recall', 'BertScore F1'],
     xticklabels=model_name,
-    cmap='YlGnBu'
+    cmap='rainbow',
+    vmin=0,
+    vmax =100,
+    ax = ax[0]
 )
-plt.title('Model Performance Comparison')
-plt.xlabel('Models')
-plt.ylabel('Metrics')
+ax[0].set_title('ROUGE and BERTScore Metrics')
+sns.heatmap(
+    data=[gemini_eval],
+    annot=True,
+    fmt=".2f",
+    yticklabels=['Gemini Evaluation'],
+    xticklabels=model_name,
+    cmap='twilight',
+    vmin=0,
+    vmax=5,
+    ax = ax[1]
+)
+ax[1].set_title('Gemini Evaluation Metric')
 plt.tight_layout()
-plt.savefig('model_performance_heatmap.png')
+#plt.savefig('model_performance_heatmap2.png')
 plt.show()
