@@ -1,20 +1,44 @@
 prompt_eval ="""You are an expert document analyst.
+Read the provided document pages and any accompanying figures or images.
+
+Produce a clear, factual, and concise summary that accurately conveys the document’s purpose, key facts, findings, and conclusions.
+
+Guidelines:
+1. Focus on the document’s core content — main ideas, results, and implications.
+2. If the document includes visuals (charts, tables, or attachments), briefly summarize their insights (e.g., key data, trends, or comparisons).
+3. Write in your own words — do not copy sentences.
+4. Exclude introductory phrases like “This document describes…” or “Here’s a summary…” or "Here is a concise summary of the document…".
+5. Avoid opinions or unnecessary details.
+6. Aim for 3–5 sentences, or fewer if the content is short.
+
+Now summarize the document precisely and cohesively."""
+
+
+prompt_eval_pro = """You are an expert government report analyst.
 Your task is to read the provided document pages and their accompanying figures or images,
-then produce a clear, factual, and concise summary.
+and produce a comprehensive Executive Summary.
 
-Follow these rules:
-1. Focus on the main ideas, findings, and conclusions from both text and visuals.
-2. If the document includes charts, tables, or images, describe their insights briefly (e.g., trends, comparisons, or key values).
-3. Do NOT copy sentences verbatim; use your own phrasing.
-4. Avoid unnecessary commentary, subjective opinions, or low-level details.
-5. Maintain the original meaning and structure, keeping it coherent and fluent.
-6. Target a length of 3–5 sentences unless the document is very short.
+Follow these strict guidelines to ensure high quality:
+1. **Scope:** Cover all major sections of the report, including the background, methodology, key findings, and specific recommendations. Do not skip the conclusion.
+2. **Detail Level:** Be detailed and comprehensive. Do not over-summarize. Include specific numbers, dates, statute names, and agency names found in the text and tables.
+3. **Visuals:** Integrate insights from charts and tables into the narrative where relevant (e.g., "As shown in Figure 1...").
+4. **Style:** Use a formal, objective, and professional tone matching a government executive summary.
+5. **Structure:** Organize the summary logically with clear paragraphs.
+6. **Length:** The summary should be extensive enough to cover all critical information. Do NOT restrict yourself to a short length; aim for a detailed overview (typically 500+ words).
 
-Now, summarize the content and visual information in this document accurately and cohesively."""
+Now, generate the Executive Summary."""
+
+
 
 prompt_images = """Describe the content of the image in detail.
 For context,the image is part of a research paper explaining the transformers
 architecture. Be specific about graphs, such as bar plots."""
+
+prompt_tables = """
+Analyze this image of a table from a research paper.
+1. Transcribe the data into a Markdown table format, preserving all column headers and row labels exactly.
+2. Provide a concise summary of the key results. Highlight the best-performing models (often bolded numbers) and identify any significant trends or comparisons being made.
+"""
 
 prompt_text = """You are an assistant tasked with summarizing tables and text.
 Give a concise summary of the table or text.
@@ -95,4 +119,39 @@ Please provide a single numerical rating from 1 to 5 based *only* on the followi
 ## Your Task:
 First, provide a brief, one-paragraph analysis of your reasoning.
 Second, provide the final score as a numerical rating ranging from 1 to 5.
+"""
+
+COMBINED_EVAL_PROMPT = """
+You are an expert evaluator. Your task is to assess a 'Prediction Summary' from an AI model.
+You will evaluate it on two criteria and provide a final JSON response.
+
+---
+[Original Prompt Given to AI]
+{prompt}
+---
+[Reference (Gold-Standard) Summary]
+{reference}
+---
+[Prediction Summary to Evaluate]
+{prediction}
+---
+
+## TASK 1: Quality Evaluation
+Evaluate the 'Prediction Summary' against the 'Original Prompt' using this rubric:
+5 (Very good): Follows instructions, grounded, concise, fluent.
+4 (Good): Follows instructions, grounded, minor issues.
+3 (Ok): Mostly follows instructions, grounded, but not concise/fluent.
+2 (Bad): Grounded, but fails the main instruction (e.g., wrong topic).
+1 (Very bad): Not grounded (hallucination).
+
+## TASK 2: Comparison Evaluation
+Evaluate the 'Prediction Summary' against the 'Reference Summary' using this rubric:
+5 (Very good): Perfectly captures all main ideas, fully grounded.
+4 (Good): Captures main ideas, grounded, minor points missing.
+3 (Ok): Grounded, but misses key ideas.
+2 (Bad): Grounded, but summarizes the wrong content.
+1. (Very bad): Not grounded in the reference.
+
+## Your Task:
+Provide *only* a single, valid JSON object matching the requested schema. Do not add any other text or analysis.
 """

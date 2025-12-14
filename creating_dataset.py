@@ -1,13 +1,14 @@
 from unstructured.partition.pdf import partition_pdf
 import base64
 from IPython.display import Image, display, Markdown
-from prompts import prompt_images, prompt_text
+from prompts import prompt_images, prompt_text, prompt_tables
 from qwen_vl_utils import process_vision_info
 from load_models.load_qwen2vl2B import model, processor
 from langchain.document_loaders import ArxivLoader
 from langchain.retrievers import ArxivRetriever
 import arxiv
 import os
+import json
 
 def chunk_pdf(file_path):
     chunks = partition_pdf(
@@ -52,7 +53,7 @@ def display_image_base64(base64_code):
   image_data= base64.b64decode(base64_code) #decode base64 to binary
   display(Image(data=image_data))
 
-def proccess_images_base64(images_base64, processor, model, prompt = prompt_images, max_tokens=128):
+def proccess_images_base64(images_base64, processor, model, prompt = prompt_images, max_tokens=512):
     """
     Generates a text description for a single base64-encoded image using Qwen-VL.
 
@@ -142,26 +143,89 @@ def main():
         "2511.19834", #Large Language Model Aided Birt-Hogg-Dube Syndrome Diagnosis with Multimodal Retrieval-Augmented Generation
         "2511.19481", #Quality analysis and evaluation prediction of RAG retrieval based on machine learning algorithms
         "2511.19423", #Beyond Protein Language Models: An Agentic LLM Framework for Mechanistic Enzyme Design
+        "2512.10787", #Replace, Don't Expand: Mitigating Context Dilution in Multi-Hop RAG via Fixed-Budget Evidence Assembly
+        "2512.10422", #Cooperative Retrieval-Augmented Generation for Question Answering: Mutual Information Exchange and Ranking by Contrasting Layers
+        "2512.10933", #Anomalous scaling law for the two-dimensional Gaussian free field
+        "2512.10897", #Observability inequality for the von Neumann equation in crystals
+        "2512.10220", #On Learning-Curve Monotonicity for Maximum Likelihood Estimators
     ]
 
     client = arxiv.Client()
     search = arxiv.Search(id_list=paper_ids)
     download_dir = "./downloaded_papers"
-    os.makedirs(download_dir, exist_ok=True)
-
+    output_file = "processed_rag_data.jsonl"
+    #os.makedirs(download_dir, exist_ok=True)
+    total_chunks = 0
     for result in client.results(search):
-        file_path = os.path.join(download_dir, f"{result.get_short_id()}.pdf")
-        if not os.path.exists(file_path):
-            result.download_pdf(dirpath=download_dir, filename=f"{result.get_short_id()}.pdf")
-            print(f"Downloaded {file_path}")
+        pdf_filename = f"{result.get_short_id()}.pdf"
+        file_path = os.path.join(download_dir, pdf_filename)
+        # if not os.path.exists(file_path):
+        #     result.download_pdf(dirpath=download_dir, filename=f"{result.get_short_id()}.pdf")
+        #     print(f"Downloaded {file_path}")
 
-        # 2. Process the local PDF
+
         print(f"Processing {file_path}...")
         chunks = chunk_pdf(file_path)
+        #total_chunks += len(chunks)
         print(f"Total Chunks for {result.title}: {len(chunks)}")
+        images_base64 = get_images_base64(chunks)
+        print(f"Total Images: {len(images_base64)}")
+        tables = get_tables(chunks)
+        print(f"Total Tables: {len(tables)}")
 
-    images_base64 = get_images_base64(chunks)
-    #print(f"Total Images: {len(images_base64)}")
+        paper_data=[]
+
+        print(f"  > Processing {len(chunks)} Text Chunks...")
+        for i, chunk in enumerate(chunks):
+            # We skip 'Table' and 'Image' types here to avoid duplication
+            # We strictly want "CompositeElement" or "Text"
+            if "Table" not in str(type(chunk)) and "Image" not in str(type(chunk)):
+                
+                # Filter out tiny noise (headers/footers < 50 chars)
+                if chunk.text and len(chunk.text) > 50:
+                    paper_data.append({
+                        "id": f"{result.get_short_id()}_text_{i}",
+                        "type": "text",
+                        "content": chunk.text,  # The actual text content
+                        "source": result.title
+                    })
+        for i, tbl in enumerate(tables):
+            if hasattr(tbl.metadata, "image_base64") and tbl.metadata.image_base64:
+                print(f"  > Processing Table {i+1}...")
+                tbl_b64 = tbl.metadata.image_base64
+                description = proccess_images_base64(tbl_b64, processor, model, prompt_tables)
+                
+                paper_data.append({
+                    "id": f"{result.get_short_id()}_table_{i}",
+                    "type": "table",
+                    "content": description, # Markdown Table + Summary
+                    "original_base64": tbl_b64,
+                    "source": result.title
+                })
+        for i, img_b64 in enumerate(images_base64):
+            print(f"  > Processing Image {i+1}...")
+            description = proccess_images_base64(img_b64, processor, model, prompt_images)
+            
+            paper_data.append({
+                "id": f"{result.get_short_id()}_img_{i}",
+                "type": "image",
+                "content": description, # Visual Description
+                "original_base64": img_b64,
+                "source": result.title
+            })
+
+        with open(output_file, 'a') as f:
+            for entry in paper_data:
+                f.write(json.dumps(entry) + "\n")
+        print(f"Saved {len(paper_data)} total items for {pdf_filename}")
+        
+
+
+
+    print(f"Total Chunks Processed: {total_chunks}")
+
+    
+    
 
     
     texts = get_text(chunks)[1]
