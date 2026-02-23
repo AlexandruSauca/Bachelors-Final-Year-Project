@@ -35,12 +35,11 @@ def get_db_connection():
 def dense_retrieval(conn, query_embedding, top_k=10):
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, content, metadata, 
-               RANK() OVER (ORDER BY embedding <=> %s::vector) as rank_vec
+        SELECT id, content, metadata 
         FROM chunks
         ORDER BY embedding <=> %s::vector
         LIMIT %s
-                   """, (query_embedding, query_embedding, top_k))
+                   """, (str(query_embedding), top_k))
     results = cursor.fetchall()
     cursor.close()
     return results
@@ -48,8 +47,7 @@ def dense_retrieval(conn, query_embedding, top_k=10):
 def sparse_retrieval(conn, query, top_k = 10):
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, content, metadata, 
-               RANK() OVER (ORDER BY ts_rank_cd(to_tsvector('english', content), query) DESC) as rank_kw
+        SELECT id, content, metadata
         FROM chunks, plainto_tsquery('english', %s) query
         WHERE to_tsvector('english', content) @@ query
         ORDER BY ts_rank_cd(to_tsvector('english', content), query) DESC
