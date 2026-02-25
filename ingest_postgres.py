@@ -9,6 +9,7 @@ from qwen_vl_utils import process_vision_info
 from load_models.load_qwen2vl2B import model, processor
 from sentence_transformers import SentenceTransformer
 import json
+import re
 
 file = "./Examples/1706.03762v7.pdf"
 vector_dim = 768 # output of EmbeddingGemma, need mofification for other models
@@ -197,6 +198,16 @@ def proccess_text(text_chunk, processor, model, prompt=prompt_text, max_tokens=2
 
     return output_text[0] 
 
+def filter_noise(text):
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)  #for URLs
+    text = re.sub(r'\S+@\S+\.\S+', '', text)  #for emails
+    #for arxiv references
+    text = re.sub(r'arXiv:.*?(?=\s|$)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'arXiv preprint', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[[0-9,\s]+\]', '', text)  #removing brackets
+    text = re.sub(r'\s+', ' ', text).strip()  # for spaces
+    text = re.sub(r'(?:[a-zA-Z0-9]\s){5,}', '', text)
+    return text
 
 def ingest_data():
     #initialize DB
@@ -208,13 +219,25 @@ def ingest_data():
     conn = get_insert_connection()
     cur = conn.cursor()
 
+    ref_section = False
+
     print(f"Processing {len(chunks)} chunks...")
     for i, chunk in enumerate(chunks):
+
+        if ref_section:
+            continue
+        original_content = str(chunk)
+        if original_content.strip().lower().startswith(("references", "reference", "bibliography")):
+            ref_section = True
+            continue
+
+        clean_content = filter_noise(original_content)
+
         content_to_embed = ""
         chunk_type = "text" 
         
         metadata_dict = chunk.metadata.to_dict()
-        original_content = str(chunk)
+        
 
         raw_orig_elements = chunk.metadata.orig_elements or []
 
@@ -237,7 +260,7 @@ def ingest_data():
                     table_html = el.text
 
                 summary = proccess_text(table_html, processor, model, prompt=prompt_text, max_tokens=256)
-                search_text = summary
+                search_text = filter_noise(summary)
                 full_text = f"Summary: {summary}\n\nRaw Table:\n{original_content}"
                 found_special = True
                 break 
@@ -253,18 +276,20 @@ def ingest_data():
                     
                     base64_img = el.metadata.image_base64
                     desc = proccess_images_base64(base64_img, processor, model, prompt=prompt_images, max_tokens=256)
-                    search_text = desc
+                    search_text = filter_noise(desc)
                     full_text = f"Image Description: {desc}\n(Image Context: {original_content})"
                     found_special = True
                     break 
 
         # text
         if not found_special:
+            if len(clean_content) < 50:   #skips text chunks that are too short
+                continue
             chunk_type = "text"
             search_text = ""
             full_text = ""
-            search_text = original_content
-            full_text = original_content
+            search_text = clean_content
+            full_text = clean_content
 
         metadata_dict["type"] = chunk_type
 
