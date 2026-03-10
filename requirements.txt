@@ -16,3 +16,4 @@ rouge_score
 arxiv
 beir
 psycopg2-binary
+deepeval
