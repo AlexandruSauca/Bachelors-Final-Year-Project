@@ -1,4 +1,4 @@
-from retrieve import hybrid_search, hybrid_search_with_HyDE
+from retrieve import hybrid_search, hybrid_search_with_HyDE, hybrid_search_with_HyDE_Gemini
 import json
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +15,10 @@ def evaluate_rag(dataset = "test_dataset_rag.json"):
     hits_at_1_hyde_15 = 0
     hits_at_5_hyde_15 = 0
 
+    mrr_sum_hyde_gemini_15 = 0
+    hits_at_1_hyde_gemini_15 = 0
+    hits_at_5_hyde_gemini_15 = 0
+
     mrr_sum_75 = 0
     hits_at_1_75 = 0
     hits_at_5_75 = 0
@@ -23,13 +27,19 @@ def evaluate_rag(dataset = "test_dataset_rag.json"):
     hits_at_1_hyde_75 = 0
     hits_at_5_hyde_75 = 0
 
+    mrr_sum_hyde_gemini_75 = 0
+    hits_at_1_hyde_gemini_75 = 0
+    hits_at_5_hyde_gemini_75 = 0
+
     for i, item in enumerate(data):
         query = item["question"]
         target_chunk_id = item["target_chunk_id"]
         results_15 = hybrid_search(query, top_k_search=15)
         results_with_HyDE_15 = hybrid_search_with_HyDE(query, top_k_search=15)
+        results_with_HyDE_Gemini_15 = hybrid_search_with_HyDE_Gemini(query, top_k_search=15)
         retrieved_ids_15 = [r[0][0] for r in results_15]  
         retrieved_ids_hyde_15 = [r[0][0] for r in results_with_HyDE_15]  
+        retrieved_ids_hyde_gemini_15 = [r[0][0] for r in results_with_HyDE_Gemini_15]
         rank_15 = 0
         if target_chunk_id in retrieved_ids_15:
             rank_15 = retrieved_ids_15.index(target_chunk_id) + 1
@@ -50,10 +60,24 @@ def evaluate_rag(dataset = "test_dataset_rag.json"):
                 hits_at_5_hyde_15 += 1
         print(f"HyDE Query {i+1}/{total_queries} | Target ID: {target_chunk_id} | Rank Found: {rank_hyde_15 if rank_hyde_15 > 0 else 'Missed (Not in Top 5)'}")
 
+        rank_hyde_gemini_15 = 0
+        if target_chunk_id in retrieved_ids_hyde_gemini_15:
+            rank_hyde_gemini_15 = retrieved_ids_hyde_gemini_15.index(target_chunk_id) + 1
+            mrr_sum_hyde_gemini_15 += (1/rank_hyde_gemini_15)
+            if rank_hyde_gemini_15 == 1:
+                hits_at_1_hyde_gemini_15 += 1
+            if rank_hyde_gemini_15 <= 5:
+                hits_at_5_hyde_gemini_15 += 1
+        print(f"HyDE Gemini Query {i+1}/{total_queries} | Target ID: {target_chunk_id} | Rank Found: {rank_hyde_gemini_15 if rank_hyde_gemini_15 > 0 else 'Missed (Not in Top 5)'}")
+
+
         results_75 = hybrid_search(query, top_k_search=75)
         results_with_HyDE_75 = hybrid_search_with_HyDE(query, top_k_search=75)
+        results_with_HyDE_Gemini_75 = hybrid_search_with_HyDE_Gemini(query, top_k_search=75)
         retrieved_ids_75 = [r[0][0] for r in results_75]
         retrieved_ids_hyde_75 = [r[0][0] for r in results_with_HyDE_75]
+        retrieved_ids_hyde_gemini_75 = [r[0][0] for r in results_with_HyDE_Gemini_75]
+
         rank_75 = 0
         if target_chunk_id in retrieved_ids_75:
             rank_75 = retrieved_ids_75.index(target_chunk_id) + 1
@@ -74,6 +98,17 @@ def evaluate_rag(dataset = "test_dataset_rag.json"):
                 hits_at_5_hyde_75 += 1
         print(f"HyDE Query {i+1}/{total_queries} | Target ID: {target_chunk_id} | Rank Found: {rank_hyde_75 if rank_hyde_75 > 0 else 'Missed (Not in Top 5)'}")
 
+        rank_hyde_gemini_75 = 0
+        if target_chunk_id in retrieved_ids_hyde_gemini_75:
+            rank_hyde_gemini_75 = retrieved_ids_hyde_gemini_75.index(target_chunk_id) + 1
+            mrr_sum_hyde_gemini_75 += (1/rank_hyde_gemini_75)
+            if rank_hyde_gemini_75 == 1:
+                hits_at_1_hyde_gemini_75 += 1
+            if rank_hyde_gemini_75 <= 5:
+                hits_at_5_hyde_gemini_75 += 1
+        print(f"HyDE Gemini Query {i+1}/{total_queries} | Target ID: {target_chunk_id} | Rank Found: {rank_hyde_gemini_75 if rank_hyde_gemini_75 > 0 else 'Missed (Not in Top 5)'}")
+
+
     mrr = mrr_sum_15 / total_queries
     hit_rate_1 = hits_at_1_15 / total_queries
     hit_rate_5 = hits_at_5_15 / total_queries
@@ -91,6 +126,14 @@ def evaluate_rag(dataset = "test_dataset_rag.json"):
     print(f"Hit@5 (In the Top 5) : {hit_rate_5_hyde:.2%} ({hits_at_5_hyde_15}/{total_queries})")
     print(f"MRR (Mean Recip Rank): {mrr_hyde:.4f}")
 
+    mrr_hyde_gemini = mrr_sum_hyde_gemini_15 / total_queries
+    hit_rate_1_hyde_gemini = hits_at_1_hyde_gemini_15 / total_queries
+    hit_rate_5_hyde_gemini = hits_at_5_hyde_gemini_15 / total_queries
+    print(f"\nEvaluation Results with HyDE Gemini:")
+    print(f"Hit@1 (Perfect Top 1): {hit_rate_1_hyde_gemini:.2%} ({hits_at_1_hyde_gemini_15}/{total_queries})")
+    print(f"Hit@5 (In the Top 5) : {hit_rate_5_hyde_gemini:.2%} ({hits_at_5_hyde_gemini_15}/{total_queries})")
+    print(f"MRR (Mean Recip Rank): {mrr_hyde_gemini:.4f}")
+
     mrr_75 = mrr_sum_75 / total_queries
     hit_rate_1_75 = hits_at_1_75 / total_queries    
     hit_rate_5_75 = hits_at_5_75 / total_queries
@@ -107,10 +150,18 @@ def evaluate_rag(dataset = "test_dataset_rag.json"):
     print(f"Hit@5 (In the Top 5) : {hit_rate_5_hyde_75:.2%} ({hits_at_5_hyde_75}/{total_queries})")
     print(f"MRR (Mean Recip Rank): {mrr_hyde_75:.4f}")
 
-    methods = ['Standard (Top 15)', 'Standard (Top 75)', 'HyDE (Top 15)', 'HyDE (Top 75)']
-    mrr = [mrr, mrr_75, mrr_hyde, mrr_hyde_75]
-    hit5 = [hit_rate_5, hit_rate_5_75, hit_rate_5_hyde, hit_rate_5_hyde_75]
-    hit1 = [hit_rate_1, hit_rate_1_75, hit_rate_1_hyde, hit_rate_1_hyde_75]
+    mrr_hyde_gemini_75 = mrr_sum_hyde_gemini_75 / total_queries
+    hit_rate_1_hyde_gemini_75 = hits_at_1_hyde_gemini_75 / total_queries
+    hit_rate_5_hyde_gemini_75 = hits_at_5_hyde_gemini_75 / total_queries
+    print(f"\nEvaluation Results with HyDE Gemini (Top 75):")
+    print(f"Hit@1 (Perfect Top 1): {hit_rate_1_hyde_gemini_75:.2%} ({hits_at_1_hyde_gemini_75}/{total_queries})")
+    print(f"Hit@5 (In the Top 5) : {hit_rate_5_hyde_gemini_75:.2%} ({hits_at_5_hyde_gemini_75}/{total_queries})")
+    print(f"MRR (Mean Recip Rank): {mrr_hyde_gemini_75:.4f}")
+
+    methods = ['Standard (Top 15)', 'Standard (Top 75)', 'HyDE (Top 15)', 'HyDE (Top 75)', 'HyDE Gemini (Top 15)', 'HyDE Gemini (Top 75)']
+    mrr = [mrr, mrr_75, mrr_hyde, mrr_hyde_75, mrr_hyde_gemini, mrr_hyde_gemini_75]
+    hit5 = [hit_rate_5, hit_rate_5_75, hit_rate_5_hyde, hit_rate_5_hyde_75, hit_rate_5_hyde_gemini, hit_rate_5_hyde_gemini_75]
+    hit1 = [hit_rate_1, hit_rate_1_75, hit_rate_1_hyde, hit_rate_1_hyde_75, hit_rate_1_hyde_gemini, hit_rate_1_hyde_gemini_75]
 
     x = np.arange(len(methods))  
     width = 0.25  
@@ -145,7 +196,7 @@ def evaluate_rag(dataset = "test_dataset_rag.json"):
     autolabel(rects3, is_percentage=True)
 
     plt.tight_layout()
-    #plt.savefig('retrieval_metrics_comparison.png')
+    #plt.savefig('retrieval_metrics_comparison_w_gemini.png')
     plt.show()
     
 
