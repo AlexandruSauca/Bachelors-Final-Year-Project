@@ -1,19 +1,34 @@
-"unstructured[pdf]"
+# Core RAG Pipeline
+unstructured[pdf]
 pytesseract
 transformers
 pillow
 torch
-ollama
-langchain
 bitsandbytes
-google
-evaluate
 qwen_vl_utils
-logging
+sentence-transformers
+psycopg2-binary
+python-dotenv
+bm25s
+
+# Vector Database
+pgvector
+
+# LLM / API
 google-generativeai
+
+# Backend (FastAPI)
+fastapi
+uvicorn
+
+# Frontend (Streamlit)
+streamlit
+requests
+
+# Evaluation
+deepeval
+evaluate
 bert-score
 rouge_score
-arxiv
-beir
-psycopg2-binary
-deepeval
+numpy
+matplotlib

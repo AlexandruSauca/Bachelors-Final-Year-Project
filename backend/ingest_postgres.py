@@ -6,7 +6,7 @@ import base64
 from IPython.display import Image, display, Markdown
 from prompts import prompt_images, prompt_text
 from qwen_vl_utils import process_vision_info
-from load_models.load_qwen2vl2B import model, processor
+from load_qwen2vl2B import model, processor
 from sentence_transformers import SentenceTransformer
 import json
 import re
@@ -209,12 +209,12 @@ def filter_noise(text):
     text = re.sub(r'(?:[a-zA-Z0-9]\s){5,}', '', text)
     return text
 
-def ingest_data():
+def ingest_data(file_path):
     #initialize DB
     get_db_connection(vector_dim)
 
     #break pdf into chunks
-    chunks = chunk_pdf(file)
+    chunks = chunk_pdf(file_path)
 
     conn = get_insert_connection()
     cur = conn.cursor()
@@ -283,7 +283,7 @@ def ingest_data():
 
         # text
         if not found_special:
-            if len(clean_content) < 60:   #skips text chunks that are too short
+            if len(clean_content) < 50:   #skips text chunks that are too short
                 continue
             chunk_type = "text"
             search_text = ""
@@ -310,4 +310,4 @@ def ingest_data():
     print("Ingestion complete.")
 
 if __name__ == "__main__":
-    ingest_data()
+    ingest_data(file_path=file)

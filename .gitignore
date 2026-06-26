@@ -1,2 +1,41 @@
+# Environment variables (NEVER commit real credentials)
 .env
-docker-compose.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (downloaded locally, too large for git)
+qwen2_vl_model/
+*.bin
+*.safetensors
+
+# Node (frontend)
+node_modules/
+.next/
+
+# DeepEval cache
+.deepeval/
+
+# Temporary files
+temp_*
+*.tmp

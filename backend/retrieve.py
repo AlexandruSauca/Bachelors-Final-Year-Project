@@ -1,7 +1,7 @@
 import os
 import psycopg2
 from dotenv import load_dotenv 
-from load_models.load_qwen2vl2B import model, processor
+from load_qwen2vl2B import model, processor
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import json
 import bm25s
@@ -84,7 +84,7 @@ def rrf(dense_results, sparse_results, k=25):
 
     return merged
 
-def rerank_results(query, results, top_k=3):
+def rerank_results(query, results, top_k=5):
     pairs = [(query, r[1]) for r in results]
     scores = rerank_model.predict(pairs)
     ranked = sorted(zip(results, scores),
