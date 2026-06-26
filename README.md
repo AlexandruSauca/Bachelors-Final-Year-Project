@@ -197,7 +197,7 @@ python evaluations/embed_eval/eval_embed_bier.py
 | RRF constant | k=25 | `retrieve.py` |
 | Initial retrieval pool | Top-K=75 | `retrieve.py` |
 | Reranker output | Top 3 | `backend/retrieve.py` |
-| Min chunk length | 50 chars | `ingest_postgres.py` |
+| Min chunk length | 60 chars | `ingest_postgres.py` |
 | Quantization | INT4 (NF4) | `load_models/load_qwen2vl2B.py` |
 | Embedding dimensions | 768 | `ingest_postgres.py` |
 | Query Condenser history | Last 4 turns | `backend/grounding_eval.py` |
